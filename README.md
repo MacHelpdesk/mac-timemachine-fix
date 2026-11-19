@@ -4,7 +4,7 @@
 
 與 [`mac-printer-setup`](https://github.com/MacHelpdesk/mac-printer-setup)、[`mac-dropbox-fix`](https://github.com/MacHelpdesk/mac-dropbox-fix) 同一個系列：先量測，再判讀，最後才動手。
 
-> **狀態：v0.1.0。** `probe` 與 `failing-paths` 在 macOS 27.3 上實跑過一次，結果與手動讀 log 相同。知識庫每一筆都是 `unverified`：訊號在那一次實際出現，但解法還沒有看到備份成功。
+> **狀態：v0.1.1。** `probe` 與 `failing-paths` 在 macOS 27.3 上實跑過一次，結果與手動讀 log 相同。知識庫每一筆都是 `unverified`：訊號在那一次實際出現，但解法還沒有看到備份成功。
 
 ## 它解決什麼
 
