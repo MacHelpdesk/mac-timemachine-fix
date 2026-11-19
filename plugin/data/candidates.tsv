@@ -1,0 +1,35 @@
+# 時光機常見的排除候選。tm-fix.sh sizes 量它們的大小與目前是否已排除。
+# 欄位以 tab 分隔：路徑（~ 開頭代表家目錄，可用 * 萬用字元）、種類、理由。
+# 種類只有三種：
+#   regenerable  可以重新下載或重建；仍要使用者同意才排除
+#   personal     使用者自己的東西，或看不出能不能重建；只列出，由使用者決定
+#   system       在家目錄以外，排除要管理者權限，由使用者自己執行
+~/.cache	regenerable	開發工具與套件的快取
+~/.npm	regenerable	npm 套件快取
+~/.cargo/registry	regenerable	Rust 套件快取
+~/go/pkg/mod	regenerable	Go 模組快取
+~/.gradle/caches	regenerable	Gradle 快取
+~/.m2/repository	regenerable	Maven 套件快取
+~/.elan	regenerable	Lean 工具鏈
+~/.rustup/toolchains	regenerable	Rust 工具鏈
+~/.ollama	regenerable	Ollama 下載的模型
+~/.lmstudio	regenerable	LM Studio 下載的模型
+~/.cache/huggingface	regenerable	Hugging Face 下載的模型與資料集
+~/Library/Developer/CoreSimulator	regenerable	iOS 模擬器
+~/Library/Developer/Xcode/DerivedData	regenerable	Xcode 編譯產物
+~/Library/Developer/Xcode/iOS DeviceSupport	regenerable	Xcode 裝置除錯符號
+~/Library/Developer/Toolchains	regenerable	Swift 工具鏈
+~/Library/Containers/com.docker.docker	personal	Docker 映像與容器；volume 裡可能有資料庫
+~/Library/CloudStorage	regenerable	Dropbox、OneDrive、Google Drive 的本機副本，雲端已有一份
+~/Library/Application Support/Steam/steamapps	regenerable	Steam 遊戲
+/Users/Shared/Epic Games	regenerable	Epic 遊戲
+/Users/Shared/* Library	regenerable	Native Instruments 等音源庫，可從官方程式重新下載
+~/Parallels	personal	Parallels 虛擬機；整個虛擬磁碟是一個檔案，開機一次就要整個重備
+~/Virtual Machines.localized	personal	VMware 虛擬機
+~/Library/Containers/com.utmapp.UTM	personal	UTM 虛擬機
+~/Downloads	personal	下載資料夾
+~/Movies	personal	影片
+~/Library/Application Support/Recordly	personal	Recordly 螢幕錄影
+/Library/Application Support/Superior Drummer	system	Toontrack 音源，可重新下載
+/Library/Application Support/EZDrummer	system	Toontrack 音源，可重新下載
+/private/var/folders	system	系統與程式的暫存

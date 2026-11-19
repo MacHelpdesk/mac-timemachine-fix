@@ -1,0 +1,13 @@
+.DS_Store
+*.log
+*.tmp
+*~
+.remember/
+
+# Personal settings, records and exclusion lists never belong in this repository.
+# They live in ~/.config/mac-timemachine-fix/; see README.md.
+problems.local.json
+records/
+exclude-system.sh
+exclusions-applied-*.txt
+.sizes-test.*

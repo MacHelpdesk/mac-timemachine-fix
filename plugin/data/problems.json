@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "about": "時光機備份一直失敗時的已知問題。每筆有症狀、量得到的訊號、原因、解法與驗證狀態。解法的 class：direct 直接做、ask 先問使用者、user 只能由使用者自己做。個人條目放 ~/.config/mac-timemachine-fix/problems.local.json。",
+  "signals": {
+    "destination": { "description": "有沒有設定備份目的地。configured：有；none：沒有", "values": ["configured", "none"] },
+    "destination_mounted": { "description": "第一個目的地現在有沒有掛載（外接硬碟有沒有接上、網路備份有沒有連上）", "values": ["yes", "no"] },
+    "auto_backup": { "description": "自動備份是否開啟", "values": ["on", "off"] },
+    "last_result": { "description": "時光機設定檔記錄的上一次結果碼（Destinations 的 RESULT）。0 是成功；其他值的意思 Apple 沒有公開，只能當線索", "values": "number" },
+    "days_since_last_backup": { "description": "距離最後一次完成的備份幾天（設定檔 SnapshotDates 的最後一筆）。從來沒有完成過時沒有這一行", "values": "number" },
+    "reference_snapshot": { "description": "上一次成功備份留在本機的參考快照還在不在。present：在；missing：設定檔記著它，但本機已經沒有；unknown：設定檔沒有記", "values": ["present", "missing", "unknown"] },
+    "interrupted_backups": { "description": "目的地上留著幾個 .interrupted（沒完成的備份）。只在目的地掛載時有", "values": "number" },
+    "destination_free_pct": { "description": "目的地剩餘空間的百分比（df -k）。只在目的地掛載時有", "values": "number" },
+    "source_free_pct": { "description": "本機資料卷剩餘空間的百分比（df -k）", "values": "number" },
+    "log_result": { "description": "有沒有讀到 backupd 的 log。failed 時下面四個 log_ 訊號都沒有", "values": ["ok", "failed"] },
+    "log_name_too_long": { "description": "log 期間內 backupd 因為路徑過長（POSIX 錯誤 63）列舉失敗的次數", "values": "number" },
+    "log_copy_stage_failed": { "description": "log 期間內 BACKUP_FAILED_COPY_STAGE 的次數", "values": "number" },
+    "log_scan_failed": { "description": "log 期間內 consistencyScan 收集變動失敗的次數", "values": "number" },
+    "log_reference_missing": { "description": "log 期間內 backupd 回報找不到參考快照的次數", "values": "number" }
+  },
+  "never": [
+    { "action": "刪除或修改備份碟上的任何東西：舊備份、.interrupted、.inprogress，包括用 tmutil delete", "reason": "那是使用者僅有的歷史版本，刪了救不回來。時光機空間不夠時會自己刪最舊的備份" },
+    { "action": "為了騰出空間或讓備份通過，刪除這台 Mac 上的檔案或資料夾，包括 log 點名的超長路徑", "reason": "那些資料夾可能屬於正在執行的程式，也可能是使用者的資料；排除就能讓備份略過它們" },
+    { "action": "關閉時光機、換目的地、抹除或重新格式化任何磁碟", "reason": "會失去既有的備份歷史，要由使用者在系統設定裡自己決定" },
+    { "action": "代替使用者執行 sudo", "reason": "需要管理者權限的指令（固定路徑排除、系統目錄排除）交給使用者自己輸入密碼執行" }
+  ],
+  "problems": [
+    {
+      "id": "reference-snapshot-lost",
+      "title": "參考快照不見了，每次都要掃描整個磁碟",
+      "symptoms": [
+        "好幾週沒有成功備份，每次都準備或備份很多小時之後失敗",
+        "目的地上累積很多 .interrupted",
+        "log 有 does not have an expected snapshot for timestamp"
+      ],
+      "match": { "all": [
+        { "signal": "reference_snapshot", "op": "equals", "value": "missing" },
+        { "signal": "days_since_last_backup", "op": "gte", "value": 7 }
+      ] },
+      "cause": "時光機的增量備份要靠上一次成功時留在本機的參考快照，才知道哪些檔案改過。快照被系統清掉後（本機磁碟快滿時，可清除的快照會先被回收），每次備份都要對整個資料卷做一致性掃描，資料量大時要好幾個小時；途中只要有一個檔案出錯，整次作廢，下一次又從頭掃。要讓一次備份完整跑完，之後才有新的參考快照。",
+      "confirm": [ "tmutil listlocalsnapshotdates /" ],
+      "fixes": [
+        { "id": "exclude-regenerable", "action": "用 tm-fix.sh sizes 找出可以重新下載或重建的大資料夾（音源庫、模型、快取、遊戲、編譯產物、雲端資料夾的本機副本），經使用者同意後排除，縮小掃描範圍", "class": "ask", "command": "tmutil addexclusion <路徑>", "side_effects": "被排除的資料夾不會出現在之後的備份裡。可用 tmutil removeexclusion <路徑> 撤回。這種排除記在資料夾本身，資料夾被刪掉重建時會失效", "verify": "tmutil isexcluded -X <路徑> 的 IsExcluded 是 1", "evidence": "unverified" },
+        { "id": "let-one-backup-finish", "action": "接上電源、讓 Mac 不睡眠、備份碟一直接著，直到一次備份完成", "class": "user", "side_effects": "可能要好幾個小時", "verify": "再量一次，days_since_last_backup 是 0、reference_snapshot 是 present", "evidence": "unverified" },
+        { "id": "start-backup", "action": "立刻開始一次備份，不等排程", "class": "ask", "command": "tmutil startbackup --auto", "side_effects": "會在背景跑很久，期間備份碟要一直接著", "verify": "tmutil status 的 Running 是 1", "evidence": "unverified" },
+        { "id": "free-source-space", "action": "整理本機磁碟，讓剩餘空間超過一成，參考快照才不會再被回收", "class": "user", "evidence": "unverified" }
+      ],
+      "evidence": { "status": "unverified", "date": "2026-11-19", "macos": "27.3", "note": "訊號與 log 在這個版本實際觀察到（最後一次成功是幾個月前，本機剩餘空間不到 5%）。解法還沒有看到備份完成，不知道是否足夠" }
+    },
+    {
+      "id": "name-too-long-in-scan",
+      "title": "掃描遇到超長路徑",
+      "symptoms": [
+        "log 有 Failed to enumerate path，錯誤是 NSPOSIXErrorDomain Code=63",
+        "之後同一次掃描以 Failed to collect events … consistencyScan 結束"
+      ],
+      "match": { "all": [ { "signal": "log_name_too_long", "op": "gte", "value": 1 } ] },
+      "cause": "某個程式（常見是測試程式或暫存工具）造出超過系統長度限制的路徑，例如上百層的同名子資料夾。backupd 列舉不了它。觀察到的那一次，掃描在半小時以上之後才失敗，兩者的因果還沒有確認。",
+      "confirm": [ "tm-fix.sh failing-paths" ],
+      "fixes": [
+        { "id": "exclude-parent", "action": "找出 failing-paths 列的路徑上、不會被刪掉重建的最近一層資料夾（例如 ~/.cache），經使用者同意後排除", "class": "ask", "command": "tmutil addexclusion <資料夾>", "side_effects": "整個資料夾都不會備份；快取、暫存目錄通常可以接受", "verify": "tmutil isexcluded -X <資料夾> 的 IsExcluded 是 1", "evidence": "unverified" },
+        { "id": "exclude-parent-fixed", "action": "資料夾會被刪掉重建時，改用固定路徑排除，需要管理者權限，由使用者自己執行", "class": "user", "command": "sudo tmutil addexclusion -p <資料夾>", "evidence": "unverified" }
+      ],
+      "evidence": { "status": "unverified", "date": "2026-11-19", "macos": "27.3", "note": "log 在這個版本實際出現兩次。排除之後是否就能完成掃描，還沒有確認" }
+    },
+    {
+      "id": "copy-stage-source-error",
+      "title": "複製時有檔案讀不到，整次備份作廢",
+      "symptoms": [
+        "log 有 Copy failed because of a problem on source，接著 Backup failed: BACKUP_FAILED_COPY_STAGE",
+        "備份跑了很久之後失敗"
+      ],
+      "match": { "all": [ { "signal": "log_copy_stage_failed", "op": "gte", "value": 1 } ] },
+      "cause": "複製階段有一個檔案讀不到（觀察到的是錯誤 -54，檔案被鎖住或沒有權限），時光機就放棄整次備份。觀察到的檔案在 /private/var/folders，是系統的暫存資料庫，正在被使用。",
+      "confirm": [ "tm-fix.sh failing-paths" ],
+      "fixes": [
+        { "id": "retry", "action": "暫存檔下一次通常已經沒被鎖住，先再跑一次", "class": "ask", "command": "tmutil startbackup --auto", "evidence": "unverified" },
+        { "id": "exclude-home-path", "action": "失敗的檔案在使用者的家目錄裡、而且是快取或暫存時，經使用者同意後排除它所在的資料夾", "class": "ask", "command": "tmutil addexclusion <資料夾>", "evidence": "unverified" },
+        { "id": "exclude-system-temp", "action": "失敗的檔案在 /private/var/folders 時，由使用者用固定路徑排除整個系統暫存目錄", "class": "user", "command": "sudo tmutil addexclusion -p /private/var/folders", "side_effects": "系統與各程式的暫存與快取都不會備份，還原時會重新產生", "evidence": "unverified" }
+      ],
+      "evidence": { "status": "unverified", "date": "2026-11-19", "macos": "27.3", "note": "觀察到一次，在一次跑了好幾個小時的備份尾端" }
+    },
+    {
+      "id": "source-disk-nearly-full",
+      "title": "本機磁碟快滿了",
+      "symptoms": [ "本機剩餘空間不到 5%", "參考快照常常不見" ],
+      "match": { "all": [ { "signal": "source_free_pct", "op": "lte", "value": 5 } ] },
+      "cause": "空間緊的時候，macOS 會先回收可清除的本機快照，包括時光機下一次備份要用的參考快照，於是備份又要整個重掃。",
+      "fixes": [
+        { "id": "free-source-space", "action": "整理本機磁碟到剩餘一成以上：刪掉不要的下載、搬走大檔案。刪什麼由使用者自己決定", "class": "user", "evidence": "unverified" }
+      ],
+      "evidence": { "status": "unverified", "date": "2026-11-19", "macos": "27.3", "note": "觀察到本機剩不到 5% 同時參考快照不見；回收快照的時機是推論，沒有直接看到" }
+    },
+    {
+      "id": "destination-nearly-full",
+      "title": "備份碟快滿了",
+      "symptoms": [ "備份碟剩餘空間不到 2%" ],
+      "match": { "all": [ { "signal": "destination_free_pct", "op": "lte", "value": 2 } ] },
+      "cause": "時光機會自己刪最舊的備份來騰空間，所以快滿本身通常不是問題。這台 Mac 要備份的量接近整顆碟的大小時，刪完舊備份也放不下。",
+      "fixes": [
+        { "id": "exclude-regenerable", "action": "縮小每次要備份的量：用 tm-fix.sh sizes 找出可以重建的大資料夾，經使用者同意後排除", "class": "ask", "command": "tmutil addexclusion <路徑>", "evidence": "unverified" },
+        { "id": "bigger-disk", "action": "換一顆比本機資料量大兩倍以上的備份碟", "class": "user", "evidence": "unverified" }
+      ],
+      "evidence": { "status": "unverified", "date": "2026-11-19", "macos": "27.3", "note": "觀察到剩不到 1%，還不知道它是不是失敗的原因" }
+    },
+    {
+      "id": "destination-not-connected",
+      "title": "備份碟沒有接上",
+      "symptoms": [ "時光機說找不到備份磁碟", "好幾天沒有備份" ],
+      "match": { "all": [
+        { "signal": "destination", "op": "equals", "value": "configured" },
+        { "signal": "destination_mounted", "op": "equals", "value": "no" }
+      ] },
+      "cause": "設定了目的地，但現在沒有掛載。",
+      "fixes": [ { "id": "connect", "action": "接上備份碟（或連上網路備份所在的網路），等它出現在 Finder 側邊欄", "class": "user", "verify": "再量一次，destination_mounted 是 yes", "evidence": "unverified" } ],
+      "evidence": { "status": "unverified", "note": "probe 的判讀只在測試裡驗過" }
+    },
+    {
+      "id": "no-destination",
+      "title": "沒有設定備份目的地",
+      "symptoms": [ "時光機從來沒有備份過" ],
+      "match": { "all": [ { "signal": "destination", "op": "equals", "value": "none" } ] },
+      "cause": "系統設定裡沒有選備份磁碟。",
+      "fixes": [ { "id": "choose-disk", "action": "在「系統設定 > 一般 > 時光機」加入備份磁碟", "class": "user", "evidence": "unverified" } ],
+      "evidence": { "status": "unverified", "note": "probe 的判讀只在測試裡驗過" }
+    },
+    {
+      "id": "auto-backup-off",
+      "title": "自動備份關著",
+      "symptoms": [ "只有手動按「立即備份」時才會備份" ],
+      "match": { "all": [ { "signal": "auto_backup", "op": "equals", "value": "off" } ] },
+      "cause": "時光機的自動備份被關掉了。",
+      "fixes": [ { "id": "turn-on", "action": "在「系統設定 > 一般 > 時光機 > 選項」把備份頻率改成自動", "class": "user", "evidence": "unverified" } ],
+      "evidence": { "status": "unverified", "note": "probe 的判讀只在測試裡驗過" }
+    }
+  ]
+}

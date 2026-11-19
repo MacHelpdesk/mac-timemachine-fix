@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # macOS, not Linux: the scripts must run under the system /bin/bash (3.2), and the
+    # knowledge base is read with the JavaScript engine that ships with macOS.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Syntax under /bin/bash
+        run: |
+          for f in plugin/scripts/*.sh tests/*.sh scripts/*.sh; do
+            [ -f "$f" ] || continue
+            /bin/bash -n "$f"
+          done
+
+      - name: Tests
+        run: |
+          for t in tests/test_*.sh; do
+            /bin/bash "$t" || exit 1
+          done
+
+      - name: Manifest and knowledge base are valid JSON
+        run: |
+          python3 -c "import json; json.load(open('plugin/.claude-plugin/plugin.json'))"
+          python3 -c "import json; json.load(open('plugin/data/problems.json'))"
+
+      - name: Knowledge base passes validate
+        run: TM_FIX_LOCAL_KB=/nonexistent /bin/bash plugin/scripts/tm-fix.sh validate
+
+      - name: No environment details in tracked files
+        run: /bin/bash scripts/check-privacy.sh
+
+      - name: Changes under plugin/ bump the version
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: /bin/bash scripts/check-version-bump.sh "origin/$BASE_REF"

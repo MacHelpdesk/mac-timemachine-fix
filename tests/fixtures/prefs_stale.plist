@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AutoBackup</key>
+	<true/>
+	<key>Destinations</key>
+	<array>
+		<dict>
+			<key>DestinationID</key>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<key>RESULT</key>
+			<integer>22</integer>
+			<key>SnapshotDates</key>
+			<array>
+				<date>2025-01-05T10:00:00Z</date>
+				<date>2025-03-10T06:20:00Z</date>
+			</array>
+			<key>ReferenceLocalSnapshotDate</key>
+			<date>2025-03-10T04:10:30Z</date>
+		</dict>
+	</array>
+</dict>
+</plist>
