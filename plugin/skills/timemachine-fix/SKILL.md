@@ -64,7 +64,7 @@ allowed-tools:
 
 | # | 動作 | 原因 |
 |---|---|---|
-| 1 | 需要 `sudo` 的排除：`sudo tmutil addexclusion -p <路徑>`（固定路徑），以及家目錄以外、不屬於使用者的路徑（`candidates.tsv` 的 `system`） | 要輸入管理者密碼。把指令寫成一支腳本放在 `~/.config/mac-timemachine-fix/`，請使用者在 Claude Code 輸入 `! sudo bash <腳本>` 執行 |
+| 1 | 需要 `sudo` 的排除：`sudo tmutil addexclusion -p <路徑>`（固定路徑），以及家目錄以外、不屬於使用者的路徑（`candidates.tsv` 的 `system`） | 要輸入管理者密碼。把指令寫成一支腳本放在 `~/.config/mac-timemachine-fix/`，在「終端機」視窗執行（見 Step 5）。不要請使用者用 Claude Code 的 `!` 執行：`!` 沒有終端機，`sudo` 讀不到密碼就失敗 |
 | 2 | 整理本機磁碟騰出空間 | 刪什麼是使用者的決定 |
 | 3 | 接上備份碟、接電源、讓 Mac 不睡眠直到備份完成 | 實體操作 |
 | 4 | 在系統設定裡加入備份磁碟、開啟自動備份 | 系統設定的畫面 |
@@ -133,7 +133,19 @@ tm-fix.sh sizes 5
 
 使用者同意哪些路徑，就只排除那些。每排除一個，用 `tmutil isexcluded -X` 確認 `IsExcluded` 是 1；把成功的路徑寫進 `~/.config/mac-timemachine-fix/records/` 的紀錄，撤回時用得到。
 
-需要 `sudo` 的寫成 `~/.config/mac-timemachine-fix/exclude-system.sh`，每一行附理由與撤回指令，請使用者執行 `! sudo bash ~/.config/mac-timemachine-fix/exclude-system.sh`。
+需要 `sudo` 的寫成 `~/.config/mac-timemachine-fix/exclude-system.sh`，每一行附理由與撤回指令。使用者同意執行之後，開一個「終端機」視窗並帶入指令，密碼由使用者在那個視窗輸入：
+
+```bash
+osascript -e 'tell application "Terminal"' -e 'activate' \
+  -e 'do script "sudo bash ~/.config/mac-timemachine-fix/exclude-system.sh"' -e 'end tell'
+```
+
+告訴使用者：輸入密碼時畫面不會顯示字元；跑完會印出「固定路徑排除：成功 N，失敗 M」，請他把那一行告訴你。
+
+- 不用 `sudo -S`、不把密碼寫進檔案或環境變數：密碼不能經過對話。
+- 不請使用者在 Claude Code 輸入 `! sudo …`：`!` 執行的指令沒有終端機，`sudo` 會回 `a terminal is required to read the password` 而失敗。
+- 腳本跑完後，用 `defaults read /Library/Preferences/com.apple.TimeMachine SkipPaths` 確認固定路徑排除已寫入。
+- 腳本裡的變數一律寫成 `${變數}`。在 UTF-8 語系下（使用者的終端機通常是），`$ok，` 這種變數後面緊接全形字的寫法，bash 會把全形字的第一個位元組讀成變數名稱的一部分；腳本有 `set -u` 時就以「未綁定的變數」中止。系統的 bash 3.2 與 Homebrew 的 bash 5.3 都是這樣，C 語系下則不會。
 
 ## Step 6：再量一次並記錄
 
@@ -180,5 +192,7 @@ tm-fix.sh sizes 5
 | `probe` 讀出目的地、上次成功、參考快照、兩邊空間與四種 log 訊號 | 已實測一次（macOS 27.3，2026-11-19），結果與手動讀 log 相同，約 27 秒 |
 | `failing-paths` 列出超長路徑與複製失敗的檔案 | 已實測一次（同上） |
 | `sizes` 展開 `~` 與含空白的萬用字元 | 只在 `tests/test_sizes.sh` 驗過 |
+| 用 `!` 執行 `sudo` | 已實測：失敗，`sudo` 讀不到密碼（Claude Code，macOS 27.3） |
+| 用 `osascript` 開終端機視窗帶入 sudo 指令 | 已實測一次（macOS 27.3）：使用者輸入密碼後腳本執行，固定路徑排除寫入 SkipPaths。當時腳本最後一行的 `$ok，` 觸發上一段的 UTF-8 問題而中止，排除本身在那之前已完成 |
 | 排除可重建的資料夾之後，備份能完整跑完 | 未驗證 |
 | 其他 macOS 版本 | 未驗證。設定檔的欄位與 log 的訊息沒有公開文件，版本不同時訊號可能缺少；缺少的訊號不會被當成比對到 |
